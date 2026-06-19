@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NousAssurons Canteleu – Votre Courtier de Proximité</title>
-<!-- EmailJS removed — envoi via mailto -->
+<!-- FormSubmit.co — envoi direct avec pièces jointes (gratuit) -->
 <style>
   :root {
     --red: #C8102E;
@@ -1530,12 +1530,11 @@ function renderFileList() {
 }
 
 // ============================================================
-// ENVOI DEVIS — via mailto (aucune configuration requise)
-// L'email s'ouvre dans le client mail du visiteur prérempli
+// ENVOI DEVIS — via FormSubmit.co (envoi direct + pièces jointes, gratuit)
 // ============================================================
-const DEST_EMAIL = "audric.seosolo@nousassurons.com";
+const FORMSUBMIT_EMAIL = "audric.seosolo@nousassurons.com";
 
-function submitDevis() {
+async function submitDevis() {
   const prenom = document.getElementById("prenom").value.trim();
   const nom = document.getElementById("nom").value.trim();
   const email = document.getElementById("email").value.trim();
@@ -1612,8 +1611,8 @@ Documents à fournir : Kbis, permis, relevé d'information, carte grise`;
   }
 
   // Corps du message complet
-  const sujet = encodeURIComponent(`Demande de devis — ${prenom} ${nom} — ${tagsSelectionnes}`);
-  const corps = encodeURIComponent(`Nouvelle demande de devis reçue sur NousAssurons Canteleu.
+  const sujet = `Demande de devis — ${prenom} ${nom} — ${tagsSelectionnes}`;
+  const corps = `Nouvelle demande de devis reçue sur NousAssurons Canteleu.
 
 === COORDONNÉES CLIENT ===
 Prénom : ${prenom}
@@ -1627,18 +1626,51 @@ Disponibilité : ${dispo || "—"}
 === ASSURANCES DEMANDÉES ===
 ${tagsSelectionnes}
 ${detailsAuto}${detailsHab}${detailsPro}
-`);
+`;
 
-  // Ouvre le client mail prérempli
-  window.location.href = `mailto:${DEST_EMAIL}?subject=${sujet}&body=${corps}`;
+  // Construction du FormData pour FormSubmit.co (supporte les pièces jointes)
+  const formData = new FormData();
+  formData.append("_subject", sujet);
+  formData.append("message", corps);
+  formData.append("name", `${prenom} ${nom}`);
+  formData.append("email", email);
+  formData.append("telephone", tel);
+  formData.append("_template", "box");
+  formData.append("_captcha", "false");
 
-  // Affiche le message de succès
-  setTimeout(() => {
-    document.getElementById("devisBody").style.display = "none";
-    document.getElementById("successMsg").style.display = "block";
-    document.getElementById("successName").textContent = prenom + " " + nom;
-    document.getElementById("successTel").textContent = tel;
-  }, 800);
+  // Ajout des pièces jointes auto
+  uploadedFilesAuto.forEach((entry) => {
+    formData.append("attachment", entry.file, entry.path + entry.file.name);
+  });
+  // Ajout des pièces jointes habitation/pro
+  uploadedFiles.forEach((entry) => {
+    formData.append("attachment", entry.file, entry.path + entry.file.name);
+  });
+
+  // Désactiver le bouton pendant l'envoi
+  const btn = document.querySelector("#devisBody button[onclick='submitDevis()']");
+  if (btn) { btn.disabled = true; btn.textContent = "Envoi en cours..."; }
+
+  try {
+    const res = await fetch(`https://formsubmit.co/ajax/${FORMSUBMIT_EMAIL}`, {
+      method: "POST",
+      headers: { "Accept": "application/json" },
+      body: formData
+    });
+    const data = await res.json();
+    if (res.ok && (data.success === "true" || data.success === true)) {
+      document.getElementById("devisBody").style.display = "none";
+      document.getElementById("successMsg").style.display = "block";
+      document.getElementById("successName").textContent = prenom + " " + nom;
+      document.getElementById("successTel").textContent = tel;
+    } else {
+      throw new Error(data.message || "Erreur inconnue");
+    }
+  } catch (err) {
+    console.error("Erreur FormSubmit :", err);
+    alert("Une erreur est survenue lors de l'envoi. Veuillez réessayer ou nous contacter directement.");
+    if (btn) { btn.disabled = false; btn.textContent = "Envoyer ma demande"; }
+  }
 }
 </script>
 </body>
